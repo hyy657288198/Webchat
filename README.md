@@ -1,6 +1,8 @@
 # Webchat
 A simple chat app that imitates wechat and separates the front and back ends.
 
+Learn this project from https://www.bilibili.com/video/BV18g4y1z7rL?p
+
 If you would like to run this app, I suggest you use IDEA to open webchat_sys and use HBuilder to open webchat, and change several IP addresses according to readme in these two folders. In addition, you also need to use Webchat.sql to create a dedicated database and use fastDFS and Nginx to build a picture server on Linux system. After that, you need to connect your computer and mobile phone to the same network. Then, you need to run webchat_sys first, run webchat on your mobile phone, and remember to open your nginx server. Finally, you will be able to use it successfully.
 
 
