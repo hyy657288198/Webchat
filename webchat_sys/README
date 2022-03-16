@@ -1,3 +1,0 @@
-1. Change url, username and password of MySQL in application.properties
-2. Change tracker-list in application.properties to your nginx ip address
-3. Change the ip address in start() method of WebSocketServer.java to your ip address
