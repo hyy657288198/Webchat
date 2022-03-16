@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+		<title></title>
+		<link href="../css/mui.min.css" rel="stylesheet" />
+		<link rel="stylesheet" type="text/css" href="../css/header.css" />
+		<link rel="stylesheet" type="text/css" href="../css/chat.css" />
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0px;
+				padding: 0px;
+				overflow: hidden;
+				-webkit-touch-callout: none;
+				-webkit-user-select: none;
+			}
+		</style>
+	</head>
+
+	<body contextmenu="return false;">
+
+		<header class="mui-bar mui-bar-nav title" style="position: fixed;">
+			<a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left title-color"></a>
+			<h1 class="mui-title title-color"><b id="chatting-nickname">W E B C H A T</b></h1>
+		</header>
+
+		<div id="msg-outter" class="mui-content">
+			<div id='msg'>
+				<div class="friend_lists"></div>
+		</div>
+		
+		<footer>
+			<div class="footer-center">
+				<textarea id='msg-text' type="text" class='input-text'></textarea>
+			</div>
+			<label for="" class="footer-right">
+				<button type="button" class="mui-btn mui-btn-gray" id="send">Send</button>
+			</label>
+		</footer>
+		
+		<script src="../js/mui.min.js"></script>
+		<script type="application/javascript" src="../js/app.js"></script>
+		<script type="text/javascript">
+				var friendUserId;
+				var friendNickname;
+				var friendFaceImage; 
+				mui.plusReady(function () {
+				   //Get my users' information
+					var me = app.getUserGlobalInfo();
+					//Get the webview of chat page
+					var chattingWebview = plus.webview.currentWebview();
+					//Set the soft keyboard style
+					chattingWebview.setStyle({
+						softinputMode:"adjustResize"
+					});
+					
+					//Get the friend attribute value passed in from the previous page
+					friendUserId = chattingWebview.friendUserId;
+					friendNickname = chattingWebview.friendNickname;
+					friendFaceImage = chattingWebview.friendFaceImage;
+					
+					//Set the title bar and friend nickname of the chat page
+					document.getElementById("chatting-nickname").innerHTML = friendNickname;
+					
+					//Render initialization chat HTML
+					initChatHistory();
+					
+					//Get chat list container object
+					var areaMsgList = document.getElementById("msg");
+					//Set the chat record to automatically scroll to the last one when entering the page
+					areaMsgList.scrollTop = areaMsgList.scrollHeight+areaMsgList.offsetHeight;
+					
+					//Get text box object of the sending content
+					var msg_text = document.getElementById("msg-text");
+					//Get send message button object
+					var send = document.getElementById("send");
+					//Monitor user input and control the color of the button by whether there is input content
+					msg_text.addEventListener("input",function(){
+						//Get the content
+						var msg_text_content = msg_text.value;
+						if(msg_text_content.length>0){
+							send.setAttribute("class","mui-btn-green");
+						}else{
+							send.setAttribute("class","mui-btn-gray");
+						}
+					});
+					
+					//When the soft keyboard pops up, listen for the resize event for the current window
+					window.addEventListener("resize",function(){
+						//resize
+						resizeScreen();
+						document.getElementById("msg-outter").style.paddingBottom = "50px";
+					});
+					//event binding for send message button
+					send.addEventListener("tap",function(){
+						//Get network status
+						var connectionStatus = plus.networkinfo.getCurrentType();
+						if(connectionStatus==1 || connectionStatus==0){
+							app.showToast("Please open the network connection...","error");
+							return;
+						}
+						//get the content of the message text box
+						var msg_text_content = msg_text.value;
+						if(msg_text_content.length==0){
+							return;
+						}
+						
+						//send message
+						sendMsg(app.imgServerUrl +me.faceImage,msg_text_content);
+						
+						//Clear the contents of the message text box
+						msg_text.value="";
+						//After sending the message, change the color of the send button to gray
+						send.setAttribute("class","mui-btn-gray");
+						//create chatMsg
+						var chatMsg = new app.ChatMsg(me.id,friendUserId,msg_text_content,null);
+						//create DataContent
+						var dataContent = new app.DataContent(app.CHAT,chatMsg,null);
+						
+						//Call websocket to send message to netty
+						var wsWebview = plus.webview.getWebviewById("webchat_chatlist.html");
+						wsWebview.evalJS("CHAT.chat('"+JSON.stringify(dataContent)+"')");
+						
+						//Save chat information to local cache
+						app.saveUserChatHistory(me.id,friendUserId,msg_text_content,1);
+						app.saveUserChatSnapshot(me.id,friendUserId,msg_text_content,true);
+					});
+				});
+				
+				//function that initialize user chat record
+				function initChatHistory(){
+					var msg_list = document.getElementById("msg");
+					
+					var me = app.getUserGlobalInfo();
+					var myId = me.id;
+					var myFaceImg = me.faceImage;
+					
+					var chatHistoryList = app.getUserChatHistory(myId,friendUserId);
+					var chatHTML = "";
+					for(var i = 0;i<chatHistoryList.length;i++){
+						var singleMsg = chatHistoryList[i];
+						if(singleMsg.flag==1){
+							chatHTML+= '<div class="me_lists">'+
+							          	'<div class="header_img">'+
+							          		'<img src="'+ app.imgServerUrl +myFaceImg+'" width="40px" height="40px" />'+
+							          	'</div>'+
+							          	'<div class="msg-wrapper left">'+
+							          		'<p class="msg-right-green">'+singleMsg.msg+'</p>'+
+							          	'</div>'+
+							          '</div>';
+						}else{
+							chatHTML+='<div class="friend_lists">' +
+										'<div class="header_img">' +
+											'<img src="'+ app.imgServerUrl + friendFaceImage +'" width="40px" height="40px" />' +
+										'</div>' +
+										'<div class="msg-wrapper right">' +
+											'<p class="msg-left-white">'+ singleMsg.msg +'</p>' +
+										'</div>' +
+									'</div>';
+						}
+					}
+					msg_list.innerHTML = chatHTML;
+					
+				}
+				//Function that resize screen
+				function resizeScreen(){
+					//Get chat list container object
+					var areaMsgList = document.getElementById("msg");
+					//Set the chat record to automatically scroll to the last one when entering the page
+					areaMsgList.scrollTop = areaMsgList.scrollHeight+areaMsgList.offsetHeight; 
+				}
+				//Function that send message
+				function sendMsg(faceImg,msg){
+					var msgHtml = '<div class="me_lists">' +
+					             	'<div class="header_img">' +
+					             		'<img src="'+faceImg+'" width="40px" height="40px" />' +
+					             	'</div>' +
+					             	'<div class="msg-wrapper left">' +
+					             		'<p class="msg-right-green">' + msg + '</p>' +
+					             	'</div>' +
+					             '</div>';
+					var msg_list = document.getElementById("msg");
+					msg_list.insertAdjacentHTML("beforeend",msgHtml);
+					
+					playSendMsgSound();
+					
+					
+				}
+				//Functions that accept messages
+				function receiveMsg(msg){
+					var msgHtml = '<div class="friend_lists">' +
+					             	'<div class="header_img">' +
+					             		'<img src="'+ app.imgServerUrl + friendFaceImage +'" width="40px" height="40px" />' +
+					             	'</div>' +
+					             	'<div class="msg-wrapper right">' +
+					             		'<p class="msg-left-white">'+ msg +'</p>' +
+					             	'</div>' +
+					             '</div>';
+					var msg_list = document.getElementById("msg");
+					msg_list.insertAdjacentHTML("beforeend",msgHtml);
+					playReceiveMsgSound();
+				}
+				
+				//Play ringing tone for sending message
+				function playSendMsgSound(){
+					var audioPlayer = plus.audio.createPlayer("../mp3/send.mp3");
+					audioPlayer.play();
+				}
+				//Play ringing tone for receiving message
+				function playReceiveMsgSound(){
+					var audioPlayer = plus.audio.createPlayer("../mp3/di_didi.mp3");
+					audioPlayer.play();
+				}
+		</script>
+	</body>
+
+</html>

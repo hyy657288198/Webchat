@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<title></title>
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+		<link href="../css/mui.min.css" rel="stylesheet" />
+		<link href="../css/header.css" rel="stylesheet" />
+		<link href="../fontico/iconfont.css" rel="stylesheet" />
+	</head>
+
+	<body>
+		<header class="mui-bar mui-bar-nav title">
+			<h1 class="mui-title title-color" id="webchat-title"><b>W E B C H A T</b></h1>
+		</header>
+		
+		<div class="mui-content"></div>
+		
+		<nav class="mui-bar mui-bar-tab">
+			<a class="mui-tab-item mui-active" tabindex="0">
+				<span class="mui-icon mui-icon-chat"></span>
+				<span class="mui-tab-label">Chats</span>
+			</a>
+			<a class="mui-tab-item" tabindex="1">
+				<span class="mui-icon iconfont icon-tongxunlu"></span>
+				<span class="mui-tab-label">Contacts</span>
+			</a>
+			<a class="mui-tab-item" tabindex="2">
+				<span class="mui-icon iconfont icon-faxian"></span>
+				<span class="mui-tab-label">Discover</span>
+			</a>
+			<a class="mui-tab-item" tabindex="3">
+				<span class="mui-icon mui-icon-person"></span>
+				<span class="mui-tab-label">Me</span>
+			</a>
+		</nav>
+		
+		<script src="../js/mui.min.js"></script>
+		<script type="text/javascript">
+			mui.init();
+			//defines an array for storing tab pages
+			var subPages = [
+				{
+					pageId: "webchat_chatlist.html",
+					pageUrl: "webchat_chatlist.html"
+				},
+				{
+					pageId: "webchat_contact.html",
+					pageUrl: "webchat_contact.html"
+				},
+				{
+					pageId: "webchat_discover.html",
+					pageUrl: "webchat_discover.html"
+				},
+				{
+					pageId:"webchat_me.html",
+					pageUrl:"webchat_me.html"
+				}
+			];
+			//set style
+			var pageStyle = {
+				top:"0px",
+				bottom:"50px"
+			};
+			
+			mui.plusReady(function () {
+				//prohibit returning to the previous page
+				mui.back = function() {
+					return false;
+				}
+				//Eventlistener for network connection
+				netChangeSwitch();
+				
+				//set style
+				plus.navigator.setStatusBarStyle("light");
+				plus.navigator.setStatusBarBackground("#00aaff");
+				
+				//Get the current webview object
+				var indexWebview = plus.webview.currentWebview();
+				//loop the pages in the array and append those four webview objects to the current page
+				for(var i =0;i<subPages.length;i++){
+					var wv = plus.webview.create(subPages[i].pageUrl,subPages[i].pageId,pageStyle);
+					wv.hide();
+					indexWebview.append(wv);
+				}
+				//Set default subpage
+				plus.webview.show(subPages[0].pageId);
+				
+				//batch add tab event
+				mui(".mui-bar-tab").on("tap","a",function(){
+					var tabindex = this.getAttribute("tabindex");
+					plus.webview.show(subPages[tabindex].pageId,"fade-in",200);
+					//Hide unwanted pages
+					for(var i=0;i<subPages.length;i++){
+						if(i!=tabindex){
+							plus.webview.hide(subPages[i].pageId,"fade-out",200);
+						}
+					}
+				});
+				setTimeout("initData()",1000);
+			});
+			//Preload
+			function initData(){
+				var webchat_chatlist  = plus.webview.getWebviewById("webchat_chatlist.html");
+				mui.fire(webchat_chatlist,"refresh");
+				
+				var webchat_me = plus.webview.getWebviewById("webchat_me.html");
+				mui.fire(webchat_me,"refresh");	
+			}
+			
+			//Eventlistener for network connection
+			function netChangeSwitch(){
+				document.addEventListener("netchange",function(){
+					//Get network status
+					var connectionStatus = plus.networkinfo.getCurrentType();
+					if(connectionStatus!=0 && connectionStatus!=1){
+						var webchat_title = document.getElementById("webchat-title");
+						webchat_title.innerHTML = "<b>W E B C H A T</b>";
+					}else{
+						//network exception
+						var webchat_title = document.getElementById("webchat-title");
+						webchat_title.innerHTML = "<b>W E B C H A T (unconnected)</b>";
+					}
+				});	
+			}
+		</script>
+	</body>
+
+</html>

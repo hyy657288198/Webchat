@@ -1,0 +1,360 @@
+<!doctype html>
+<html>
+
+	<head>
+			<meta charset="utf-8">
+			<title></title>
+			<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+			<link href="../css/mui.css" rel="stylesheet" />
+			<link href="../css/header.css" rel="stylesheet" />
+			<style type="text/css">
+				.mui-content{
+					height: 100%;
+					overflow: auto;
+				}
+				.red-point{
+					position: relative;
+				}
+				.red-point::before{
+					content: " ";
+					border: 5px solid #ff0000;
+					border-radius: 5px;
+					position: absolute;
+					z-index: 20;
+					right: 0%;
+					margin-right: -10px;
+					margin-top: 0px;
+				}
+			</style>
+		</head>
+
+	<body>
+
+		<header class="mui-bar mui-bar-nav title">
+			<h1 class="mui-title title-color">W E B C H A T</h1>
+		</header>
+
+		<div class="mui-content">
+			<ul class="mui-table-view" id="ul_friend_request_list" style="margin-bottom: 10px;">
+			</ul>
+			<ul id="ul_chatSnapshot" class="mui-table-view">
+			</ul>
+		</div>
+		
+		<script src="../js/mui.js"></script>
+		<script src="../js/app.js"></script>
+		<script type="text/javascript">
+			mui.init();
+			var user ;
+			mui.plusReady(function () {
+				user= app.getUserGlobalInfo();
+				//Load friend request record
+				var thisWebview = plus.webview.currentWebview();
+				thisWebview.addEventListener("show",function(){
+					loadingFriendRequest();
+				});
+				//Refresh friend request
+				window.addEventListener("refresh",function(){
+					loadingFriendRequest();
+					CHAT.init();
+				});
+				//CHAT.init();
+				
+				mui("#ul_chatSnapshot").on("tap",".chat-with-friend",function(e){
+					var friendUserId = this.getAttribute("friendUserId");
+					var friendNickname = this.getAttribute("friendNickname");
+					var friendFaceImage = this.getAttribute("friendFaceImage");
+					//Open chat page
+					mui.openWindow({
+						url: "webchat_chatting.html",
+						id: "webchat_chatting" + friendUserId,
+						extras: {
+							friendUserId:friendUserId,
+							friendNickname:friendNickname,
+							friendFaceImage:friendFaceImage
+						}
+					});
+					var me = app.getUserGlobalInfo();
+					//Mark unread status as read
+					app.readUserChatSnapShot(me.id,friendUserId);
+					loadingChatSnapshot();
+				});
+				
+				//Slide left to delete chat record
+				mui("#ul_chatSnapshot").on("tap","#link_delChatRecord",function(e){
+					var me = this;
+					var friendUserId = me.getAttribute("friendUserId");
+					//1. Delete local chat msg
+					app.deleteUserChatHistory(user.id,friendUserId);
+					//2. Delete local chat snapshot
+					app.deleteUserChatSnapshot(user.id,friendUserId);
+					//Remove the DOM node of the current user operation
+					var li = me.parentNode.parentNode;
+					var ul_chatSnapshot = document.getElementById("ul_chatSnapshot");
+					//Delete li element
+					ul_chatSnapshot.removeChild(li);
+				});
+			});
+			window.CHAT = {
+				socket: null,
+				init:function(){
+					//Determine whether the browser supports websocket
+					if(window.WebSocket){
+						if(CHAT.socket !=null && CHAT.socket !=undefined && CHAT.socket.readyState == WebSocket.OPEN){
+							return false;
+						}
+						try{
+							CHAT.socket = new WebSocket(app.nettyServerUrl);
+							CHAT.socket.onopen = CHAT.wsopen,
+							CHAT.socket.close=CHAT.wsclose,
+							CHAT.socket.onerror = CHAT.wserror,
+							CHAT.socket.onmessage = CHAT.wsmessage
+						}catch(e){
+							console.log(e.message);
+						}
+					}else{
+						console.log("Your mobile system version is too old. Please upgrade your device.");
+					}
+				},
+				//send msg
+				chat:function(msg){
+					if(CHAT.socket !=null && CHAT.socket !=undefined && CHAT.socket.readyState == WebSocket.OPEN){
+						CHAT.socket.send(msg);
+					}else{
+						CHAT.init();
+						setTimeout("CHAT.reChat('"+msg+"')","1000");
+					}
+					loadingChatSnapshot();
+				},
+				//Socket reconnection mechanism
+				reChat:function(msg){
+					console.log("Message resend.");
+					CHAT.socket.send(msg);
+				},
+				wsopen:function(){
+					console.log("websocket connected.");
+					var me = app.getUserGlobalInfo();
+					var chatMsg = new app.ChatMsg(me.id,null,null,null);
+					var dataContent = new app.DataContent(app.CONNECT,chatMsg,null);
+					CHAT.chat(JSON.stringify(dataContent));
+					fetchUnReadMsg();
+					setInterval("CHAT.keepalive()",55000);
+				},
+				wsmessage:function(e){
+					console.log("Received message："+e.data);
+					
+					var dataConetent = JSON.parse(e.data);
+					var action = dataConetent.action;
+					if(action==app.PULL_FRIEND){
+						var user = app.getUserGlobalInfo();
+						fetchContactList(user);
+						return false;
+					}
+					//If you don't pull the friends list again, get the chat message model and render the received chat records
+					var chatMsg = dataConetent.chatMsg;
+					var msg = chatMsg.msg;
+					var friendUserId = chatMsg.senderId;
+					var myId = chatMsg.receiverId;
+					
+					//Call websocket to send messages to the netty backend
+					var chatWebview = plus.webview.getWebviewById("webchat_chatting"+friendUserId);
+					var isRead = true;
+					
+					if(chatWebview!=null){
+						chatWebview.evalJS("receiveMsg('"+msg+"')");
+						chatWebview.evalJS("resizeScreen()");
+					}else{
+						isRead = false;
+					}
+					
+					//After receiving the message, sign for the message
+					var dataContentSign = new app.DataContent(app.SIGNED,null,chatMsg.msgId);
+					CHAT.chat(JSON.stringify(dataContentSign));
+					
+					//Save to local
+					app.saveUserChatHistory(myId,friendUserId,msg,2);
+					app.saveUserChatSnapshot(myId,friendUserId,msg,isRead);
+					
+					loadingChatSnapshot();
+				},
+				wsclose:function(){
+					console.log("connect ends.......");
+				},
+				wserror:function(){
+					console.log("error occurred.....");
+				},
+				//Sign msg
+				signMsgList:function(unSignedMsgIds){
+					var dataContentSign = new  app.DataContent(app.SIGNED,null,unSignedMsgIds);
+					CHAT.chat(JSON.stringify(dataContentSign));
+				},
+				//keep alive
+				keepalive:function(){
+					var dataConetent = new app.DataContent(app.KEEPALIVE,null,null);
+					CHAT.chat(JSON.stringify(dataConetent));
+					//Functions that need to be executed regularly
+					fetchUnReadMsg();
+					fetchContactList(user);
+				}
+			};
+			//functions that render chat snapshots
+			function loadingChatSnapshot(){
+				var user = app.getUserGlobalInfo();
+				var chatSnapshotList = app.getUserChatSnapshot(user.id);
+				var ul_chatSnapshot = document.getElementById("ul_chatSnapshot");
+				ul_chatSnapshot.innerHTML="";
+				var chatItemHtml = "";
+				for(var i = 0;i<chatSnapshotList.length;i++){
+					var chatItem = chatSnapshotList[i];
+					var friendId = chatItem.friendId;
+					//Get relevant information from the local cached friendid list
+					var friend = app.getFriendFromContactList(friendId);
+					//Determine the read or unread status of the message
+					var isRead = chatItem.isRead;
+					var readHtmlBefore ='';
+					var readHtmlAfter='';
+					if(!isRead){
+						readHtmlBefore='<span class="red-point">';
+						readHtmlAfter='</span>';
+					}
+					
+					chatItemHtml = '<li  friendUserId="'+friendId+'" friendNickname="'+friend.friendNickname+'" friendFaceImage="'+friend.friendFaceImage+'" class="chat-with-friend mui-table-view-cell mui-media">'+
+										'<div class="mui-slider-right mui-disabled">'+
+											'<a id="link_delChatRecord" friendUserId="'+friendId+'" class="mui-btn mui-btn-red">Delete</a>'+
+										'</div>'+
+										'<div class="mui-slider-handle mui-media-body">'+
+											'<img class="mui-media-object mui-pull-left" src="'+ app.imgServerUrl+ friend.friendFaceImage+'" />'+
+											   readHtmlBefore +  friend.friendNickname + readHtmlAfter +
+											'<p class="mui-ellipsis">'+ chatItem.msg +'</p>'+
+										'</div>'+
+									'</li>';
+					ul_chatSnapshot.insertAdjacentHTML('beforeend',chatItemHtml);
+				}
+			}
+			
+			//Function that get back-end friend list data
+			function fetchContactList(user){
+				mui.ajax(app.serverUrl + "/user/myFriends?userId="+user.id,{
+					type:'post',
+					timeout:10000,
+					headers:{'Content-Type':'application/json'},	              
+					success:function(data){
+						if(data.status==200){
+							var contactList = data.data;
+							//save to local
+							app.setContactList(contactList);
+							console.log(JSON.stringify(contactList));
+						}
+					}
+				});
+			}
+			//Load friend request record list
+			function loadingFriendRequest(){
+				var user = app.getUserGlobalInfo();
+				mui.ajax(app.serverUrl+"/user/queryFriendRequest?userId="+user.id,{
+					dataType:'json',
+					type:'post',
+					timeout:10000,
+					success:function(data){
+						if(data.status==200){
+							var friendReqeustList = data.data;
+							var ul_friend_request_list = document.getElementById("ul_friend_request_list");
+							if(friendReqeustList!=null && friendReqeustList.length>0){
+								var friendRequestHTML="";
+								//traverse friend request list
+								for(var i =0;i<friendReqeustList.length;i++){
+									friendRequestHTML+=renderFriendRequest(friendReqeustList[i]);
+								}
+								//Embed the spliced friend list string into the UL tag object
+								ul_friend_request_list.innerHTML = friendRequestHTML;
+								//Dynamic processing ignores event through buttons
+								mui(".btnOper").on("tap",".ignoreRequest",function(){
+									 var friendId = this.getAttribute("friendId");
+									 operatorFriendRequest(user.id,friendId,0);
+								});
+								//Dynamic processing accepts event through buttons
+								mui(".btnOper").on("tap",".passRequest",function(){
+									 var friendId = this.getAttribute("friendId");
+									 operatorFriendRequest(user.id,friendId,1);
+								});
+							}else{
+								ul_friend_request_list.innerHTML="";
+							}
+						}
+					},
+					error:function(e){
+						console.log(e);
+					}
+				});
+			}
+			//function for splicing information of a single friend list
+			function renderFriendRequest(friend){
+				var html = "";
+				html='<li class="btnOper mui-table-view-cell mui-media">'+
+					'<a href="javascript:;">'+
+						'<img class="mui-media-object mui-pull-left" src="'+app.imgServerUrl+friend.sendFaceImage+'">'+
+						'<span class="mui-pull-right">'+
+							'<button type="button" class="ignoreRequest mui-btn mui-btn-grey" friendId="'+friend.sendUserId+'" style="padding: 5px 10px;margin-right: 5px;">Ignore</button>'+
+							'<button type="button" class="passRequest mui-btn mui-btn-danger" friendId="'+friend.sendUserId+'" style="padding: 5px 10px;background-color:#FF4136 ;">Agree</button>'+
+						'</span>'+
+						'<div class="mui-media-body">'+
+							'<label>'+friend.sendNickname+'</label>'+
+							'<p class="mui-ellipsis">Request to add you as a friend</p>'+
+						'</div>'+
+					'</a>'+
+				'</li>';
+				return html;
+			}
+			
+			//Process friend requests
+			function operatorFriendRequest(userId,friendId,operType){
+				mui.ajax(app.serverUrl+"/user/operFriendRequest?acceptUserId="+userId+"&sendUserId="+friendId+"&operType="+operType,{
+					dataType:'json',
+					type:'post',
+					timeout:10000,
+					success:function(data){
+						//Update contacts
+						var myFriendList = data.data;
+						app.setContactList(myFriendList);
+						
+						loadingFriendRequest();
+					}
+				});
+			}
+			//get the unsigned message of the server after each reconnection
+			function fetchUnReadMsg(){
+				var user = app.getUserGlobalInfo();
+				var msgIds=",";//1001,1002,1003,
+				mui.ajax(app.serverUrl+"/user/getUnReadMsgList?acceptUserId="+user.id,{
+					dataType:'json',
+					type:'post',
+					timeout:10000,
+					success:function(data){
+						if(data.status==200){
+							//Get the data of unsigned message list
+							var unReadMsgList = data.data;
+							console.log("Unread message："+JSON.stringify(unReadMsgList));
+							
+							//1. Save chat records to local
+							//2. Save chat snapshot to local
+							//3. Batch sign in these unsigned msg
+							for(var i=0;i<unReadMsgList.length;i++){
+								var msgObj = unReadMsgList[i];
+								app.saveUserChatHistory(msgObj.acceptUserId,msgObj.sendUserId,msgObj.msg,2);
+								app.saveUserChatSnapshot(msgObj.acceptUserId,msgObj.sendUserId,msgObj.msg,false);
+								msgIds+= msgObj.id;
+								msgIds+=",";
+							}
+							//Call the function of batch sign in
+							CHAT.signMsgList(msgIds);
+							//render the snapshot to the list for presentation
+							loadingChatSnapshot();
+							
+						}
+					}
+				});
+			}
+		</script>
+	</body>
+
+</html>

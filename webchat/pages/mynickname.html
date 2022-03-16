@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<title></title>
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+		<link href="../css/mui.css" rel="stylesheet" />
+		<link href="../css/header.css" rel="stylesheet" />
+	</head>
+
+	<body>
+		<header class="mui-bar mui-bar-nav title">
+			<a class="mui-action-back mui-icon mui-icon-left-nav mui-pull-left title-color"></a>
+			<a id="link_submit_nichname" class="mui-icon mui-icon-right-nav mui-pull-right title-color" style="font-size:16px;line-height: 25px;">done</a>
+			<h1 class="mui-title title-color" >Edit Your Nickname</h1>
+		</header>
+		
+		<div class="mui-content">
+			<div class="mui-input-row">
+				<input id="txt_nickname" type="text" class="mui-input-speech mui-input-clear" placeholder="Please enter your nickname..." />
+			</div>
+		</div>
+		
+		<script src="../js/mui.js"></script>
+		<script src="../js/app.js"></script>
+		<script type="text/javascript">
+			mui.init();
+			mui.plusReady(function () {
+				//Gets the global user object after login or registration
+				var user = app.getUserGlobalInfo();
+				//Get nickname
+				var mynickname = user.nickname;
+				//Gets the text box object that modifies the nickname
+				var txt_nickname = document.getElementById("txt_nickname");
+				//Dynamically set the value of the nickname text box
+				txt_nickname.value = mynickname;
+				
+				//Modify nickname
+				var link_submit_nichname = document.getElementById("link_submit_nichname");
+				link_submit_nichname.addEventListener("tap",function(){
+					//Get the modified nickname
+					var newNickName = txt_nickname.value;
+					if(!app.isNotNull(newNickName)){
+						app.showToast("Please enter your nickname","error");
+						return false;
+					}
+					if(newNickName.length>10){
+						app.showToast("The length of the nickname must not be shorter than 10 characters.","error");
+						return false;
+					}
+					plus.nativeUI.showWaiting("Please wait...");
+					//Asynchronous request background server
+					mui.ajax(app.serverUrl+"/user/setNickname",{
+						data:{
+							id:user.id,
+							nickname:newNickName
+						},
+						type:'post',
+						timeout:10000,
+						success:function(data){ 
+							console.info(JSON.stringify(data));
+							plus.nativeUI.closeWaiting();
+							
+							if(data.status==200){
+								//After successful login or registration, save the global user object to the local cache
+								var userinfoJSON = data.data;
+								console.log(userinfoJSON);
+								app.setUserGlobalInfo(userinfoJSON);
+								
+								//Trigger another custom event of webview to update the latest user information
+								var mywebview = plus.webview.getWebviewById("webchat_me.html");
+								mui.fire(mywebview,"refresh");
+								mui.back();
+							}else{
+									app.showToast(data.msg,"error");
+							}
+						},
+						error:function(XMLHttpRequest, textStatus, errorThrown){
+							if(textStatus=="timeout"){
+								mui.toast("Connection timeout.");
+							}else if(textStatus=="error"){
+								mui.toast("Connection error.");
+							}
+						}
+					});
+				});
+			});
+		</script>
+	</body>
+
+</html>

@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<title></title>
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+		<link href="../css/mui.css" rel="stylesheet" />
+		<link href="../css/header.css" rel="stylesheet" />
+		<link href="../css/mui.indexedlist.css" rel="stylesheet" />
+	</head>
+
+	<body>
+		<header class="mui-bar mui-bar-nav title">
+			<h1 class="mui-title title-color"><b>C O N T A C T S</b></h1>
+		</header>
+		
+		<div class="mui-content">
+			<div id='list' class="mui-indexed-list">
+				<div class="mui-indexed-list-search mui-input-row mui-search">
+					<input type="search" class="mui-input-clear mui-indexed-list-search-input" placeholder="Search friends...">
+				</div>
+				<div class="mui-indexed-list-bar">
+					<a>A</a>
+					<a>B</a>
+					<a>C</a>
+					<a>D</a>
+					<a>E</a>
+					<a>F</a>
+					<a>G</a>
+					<a>H</a>
+					<a>I</a>
+					<a>J</a>
+					<a>K</a>
+					<a>L</a>
+					<a>M</a>
+					<a>N</a>
+					<a>O</a>
+					<a>P</a>
+					<a>Q</a>
+					<a>R</a>
+					<a>S</a>
+					<a>T</a>
+					<a>U</a>
+					<a>V</a>
+					<a>W</a>
+					<a>X</a>
+					<a>Y</a>
+					<a>Z</a>
+				</div>
+				<div class="mui-indexed-list-alert"></div>
+				<div class="mui-indexed-list-inner">
+					<div class="mui-indexed-list-empty-alert">No Data</div>
+					<ul id="contactList" class="mui-table-view">	
+					</ul>
+				</div>
+			</div>
+		</div>
+		
+		
+		<script src="../js/mui.js"></script>
+		<script src="../js/mui.indexedlist.js"></script>
+		<script src="../js/app.js"></script>
+		<script src="../js/nickname.js"></script>
+		<script type="text/javascript">
+			mui.init();
+			//26 letters plus #
+			var enWords = [
+				'A','B','C','D','E','F','G',
+				'H','I','J','K','L','M','N',
+				'O','P','Q','R','S','T','U',
+				'V','W','X','y','Z','#'
+			];
+			//building a two-dimensional array model of contacts
+			var friendArray =[
+				[],[],[],[],[],[],[],[],[],
+				[],[],[],[],[],[],[],[],[],
+				[],[],[],[],[],[],[],[],[]
+			];
+			
+			//clear contacts model array
+			function clearFriendArray(){
+				friendArray =[
+					[],[],[],[],[],[],[],[],[],
+					[],[],[],[],[],[],[],[],[],
+					[],[],[],[],[],[],[],[],[]
+				]
+			}
+			mui.plusReady(function () {
+				//Get global login user object
+				var user = app.getUserGlobalInfo();
+				//Get friends backend data
+				fetchContactList(user);
+				//event listener to the show event of the current webview
+				var thisWebview = plus.webview.currentWebview();
+				thisWebview.addEventListener("show",function(){
+					renderContactPage();
+					showList();
+				})
+			});
+			
+			//Get the contact list from the cache and render it to the page
+			function renderContactPage(){
+				var friendList = app.getContactList();
+				//loop friends list
+				//Convert the nickname into characters, and insert the friends in the current cycle into the array under the corresponding letters in the corresponding two-dimensional array
+				for(var i =0;i<friendList.length;i++){
+					var friend  = friendList[i];
+					var pinyin = words.convertPinyin(friend.friendNickname);
+					var firstStr = pinyin.substr(0,1).toUpperCase();
+					var index = getOrderOfWords(firstStr);
+					friendArray[index].push(friend);
+				}
+				var friendHtml="";
+				//traversing two-dimensional array of contacts
+				for(var i=0;i<friendArray.length;i++){
+					var contactArray = friendArray[i];
+					if(contactArray.length>0){
+						var nicknameStarter = enWords[i];
+						//splicing HTML strings
+						friendHtml+='<li data-group="'+nicknameStarter+'" class="mui-table-view-divider mui-indexed-list-group">'+nicknameStarter+'</li>';
+						for(var j =0;j<contactArray.length;j++){
+							friendHtml+='<li friendUserId="'+contactArray[j].friendUserId+'" friendNickname="'+contactArray[j].friendNickname+'" friendFaceImage="'+contactArray[j].friendFaceImage+'" class="chat-with-friend mui-media mui-table-view-cell mui-indexed-list-item">'+
+											'<img class="mui-media-object mui-pull-left" style="max-width: 35px;height: 35px;" src="'+app.imgServerUrl+contactArray[j].friendFaceImage+'" />'+
+											'<div class="mui-media-body" style="line-height: 35px;">'+contactArray[j].friendNickname+'</div>'+
+										'</li>';
+						}
+					}
+				}
+				//render html
+				document.getElementById("contactList").innerHTML=friendHtml;
+				//clear
+				clearFriendArray();
+				
+				//batch add touch events for friends list
+				mui("#contactList").on("tap",".chat-with-friend",function(){
+					var friendUserId = this.getAttribute("friendUserId");
+					var friendNickname = this.getAttribute("friendNickname");
+					var friendFaceImage = this.getAttribute("friendFaceImage");
+					mui.openWindow({
+						url: "webchat_chatting.html",
+						id: "webchat_chatting" + friendUserId,
+						extras: {
+							friendUserId:friendUserId,
+							friendNickname:friendNickname,
+							friendFaceImage:friendFaceImage
+						}
+					});
+				});
+			}
+			
+			
+			//Gets the position of letter array
+			function getOrderOfWords(ch){
+				for(var i=0;i<enWords.length;i++){
+					if(enWords[i]==ch){
+						return i;
+					}
+				}
+				//If there is no corresponding value, in #
+				return enWords.length-1;
+			}
+			
+			//function that get backend friends list data
+			function fetchContactList(user){
+				mui.ajax(app.serverUrl + "/user/myFriends?userId="+user.id,{
+					type:'post',
+					timeout:10000,；
+					headers:{'Content-Type':'application/json'},	              
+					success:function(data){
+						if(data.status==200){
+							var contactList = data.data;
+							//Save friends list in local cache
+							app.setContactList(contactList);
+							console.log(JSON.stringify(contactList));
+						}
+					}
+				});
+			}
+			
+			function showList(){
+				var list = document.getElementById("list");
+				list.style.height = document.body.offsetHeight+"px";
+				window.indexedList = new mui.IndexedList(list);
+			}
+			
+		</script>
+	</body>
+
+</html>

@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+	<title></title>
+	<script src="../js/mui.min.js"></script>
+
+	<link rel="stylesheet" type="text/css" href="../css/registLogin/util.css">
+	<link rel="stylesheet" type="text/css" href="../css/registLogin/main.css">
+
+	
+
+	<style>
+    
+		.p-t-85 {
+			padding-top: 10px;
+		}
+		
+		.p-b-70 {
+			padding-bottom: 35px;
+		}
+		
+		.m-t-85 {
+			margin-top: 15px;
+		}
+		
+		.container-login100 {
+			padding: 25px;
+		}
+
+		.mui-toast-container {
+			bottom: 50% !important;
+		}
+		.mui-toast-message {
+			opacity: 0.6;
+			color: #fff;
+			width: 180px;
+			padding: 70px 5px 10px 5px;
+		}
+
+    </style>
+</head>
+
+<body>
+	<div class="mui-content">
+		<div class="container-login100">
+			<div class="wrap-login100 p-t-85 p-b-20">
+				<form id="userform">
+					<span class="login100-form-title p-b-70">
+						<h5>WEBCHAT</h5>
+					</span>
+					<span class="login100-form-avatar">
+						<img id="img_login_face" src="../images/avatar.jpeg" alt="gary">
+					</span>
+
+					<div class="wrap-input100 validate-input m-t-85 m-b-35">
+						<input class="input100" type="text" id="username" name="username" placeholder="Please enter your username...">
+						<span class="focus-input100"></span>
+					</div>
+
+					<div class="wrap-input100 validate-input m-b-50">
+						<input class="input100" type="password" id="password" name="password" placeholder="Please enter your password...">
+						<span class="focus-input100"></span>
+					</div>
+					<div class="container-login100-form-btn" >
+						<button type="submit"  class="login100-form-btn" style="background-color: #00aaff;">
+							Login / Register
+						</button>
+					</div>
+				</form>
+				
+			</div>
+		</div>
+	</div>
+
+	<script type="text/javascript" src="../js/app.js" ></script>
+	<script type="text/javascript" charset="utf-8">
+    mui.init();
+	mui.plusReady(function () {
+		// Determine whether the user has registered and logged in. 
+		// If there is a global user object in the local memory, directly jump to the home page
+		var userInfo = app.getUserGlobalInfo();
+		if (userInfo != null) {
+			mui.openWindow("index.html", "index.html");
+		}
+		
+	    var userform = document.getElementById("userform");
+		var username = document.getElementById("username");
+		var password = document.getElementById("password");
+		
+		userform.addEventListener("submit", function(e){
+			//if username is null, get focus
+			if (!app.isNotNull(username.value)) {
+				app.showToast("Please enter your username.", "error");
+				username.focus();
+				//if password is null, get focus
+			} else if (!app.isNotNull(password.value)) {
+				app.showToast("Please enter your password.", "error");
+				password.focus();
+				//check the reliability of username and password
+			} else {
+				if (username.value.length > 12) {
+					app.showToast("The length of the username must not be shorter than 12 characters.", "error");
+					return false;
+				} else if (password.value.length > 6) {
+					app.showToast("The length of the password must not be shorter than 6 characters.", "error");
+					return false;
+				}
+				var cid = plus.push.getClientInfo().clientid;
+				mui.ajax(app.serverUrl + "/user/registerOrlogin", {
+					data: {
+						username: username.value,
+						password: password.value,
+						cid: cid
+					},
+					type: 'post',
+					timeout: 10000,
+					success: function (data) {
+						console.info(JSON.stringify(data));
+						//If the server successfully returns non-empty data, it indicates that the account and password verification have been successful
+						if(data.status==200){
+							//Gets the user object in the JSON object
+							var userInfo = data.data;
+							app.setUserGlobalInfo(userInfo);
+							mui.openWindow({url:'index.html', id:'index'});
+							
+						}else{
+							app.showToast(data.msg,"error");
+						}
+		
+					},
+					error: function (XMLHttpRequest, textStatus, errorThrown) {
+						mui(".mui-btn-green").button('reset');
+						if (textStatus == "timeout") {
+							mui.toast("Connection timeout.");
+						} else if (textStatus == "error") {
+							mui.toast("Connection error.");
+						}
+					}
+				})
+			}
+			e.preventDefault();
+		})
+	})
+
+</script>
+</body>
+
+</html>

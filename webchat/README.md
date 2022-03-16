@@ -1,0 +1,1 @@
+1. Change those 3 ip addresses in app.js to yours
