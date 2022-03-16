@@ -11,9 +11,9 @@ The home page of this app is the login and registration page. If the user's info
 Users' personal information, chat records, friends and other information will be stored in the database. If the user receives a message while offline, the server will store it in the database in an unsigned status. When the user logs in again, those messages will be displayed and prompt the user for unread messages. The information of the user's Avatar, QR code and other pictures will be stored in the database by network address. When necessary, it will be obtained from the picture server built with fastDFS and Nginx. Webchat also uses netty's heartbeat mechanism to monitor the process. If the user remains all idle for a period of time, the user's process will be automatically closed.
 
 
-·Use Mui, H5 + to complete the rendering and code implementation of front-end
-·Implement back-end with springboot framework
-·Use mybatis, a persistence layer framework, to operate the database
-·Keep data persistent storage with MySQL
-·Use the websocket provided by netty to read, write and send messages, so as to complete real-time communication
+·Use Mui, H5 + to complete the rendering and code implementation of front-end   
+·Implement back-end with springboot framework   
+·Use mybatis, a persistence layer framework, to operate the database   
+·Keep data persistent storage with MySQL   
+·Use the websocket provided by netty to read, write and send messages, so as to complete real-time communication   
 ·Build a high-performance distributed image server on Linux system with fastDFS and Nginx to store images
